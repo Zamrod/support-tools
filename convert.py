@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
 import argparse
-import time
-import re
-import uuid
-import sys
-import shutil
 import logging
+import sys
+import uuid
+
+from slugify import slugify
+from models import Module, Compendium
+from parsers import FantasyGrounds
 
 # parse arguments
 parser = argparse.ArgumentParser(description="Convert existing modules to Encounter+ compatible file")
@@ -25,13 +25,9 @@ args = parser.parse_args()
 if args.debug:
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 else:
-    logging.basicConfig(stream=sys.stdout, level=logging.INFO) 
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 logger = logging.getLogger(__name__)
-
-from slugify import slugify
-from models import Module
-from parsers import FantasyGrounds
 
 if __name__ == "__main__":
     # create module
@@ -43,6 +39,15 @@ if __name__ == "__main__":
     module.code = args.code
     module.image = args.cover or "Cover.jpg"
 
+    # create compendium
+    compendium = Compendium()
+    compendium.id = args.id or str(uuid.uuid4())
+    compendium.name = args.name or "Unknown"
+    compendium.slug = slugify(module.name)
+    compendium.author = args.author or "Unknown"
+    compendium.code = args.code
+    compendium.image = args.cover or "Cover.jpg"
+
     # create data parser
     dp = None
 
@@ -50,6 +55,7 @@ if __name__ == "__main__":
         # FantasyGrounds
         dp = FantasyGrounds()
         module.description = "Converted from FG"
+        compendium.description = "Converted from FG"
 
     # process data in path
-    dp.process(args.path, module)
+    dp.process(args.path, module, compendium)

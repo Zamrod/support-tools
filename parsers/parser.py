@@ -1,4 +1,5 @@
 class Parser:
 
-	def process(path, module):
-		pass
+    def process(path, module, compendium):
+        pass
+

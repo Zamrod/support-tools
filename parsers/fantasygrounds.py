@@ -1,16 +1,20 @@
+import logging
 import os
 import re
-import uuid
 import shutil
 
+from markdownify import markdownify
+
 from xml.etree import ElementTree
-from natsort import natsorted, humansorted
-from parsers import Parser
-from models import Group, Page, Map, Marker, Encounter, Combatant, Module
+
+from natsort import humansorted
 from slugify import slugify
 
-import logging
+from models import Group, Page, Map, Marker, Encounter, Combatant, Module, Monster, Item, Spell, Trait, Action
+
+
 logger = logging.getLogger(__name__)
+
 
 # class helpers
 class Image:
@@ -18,13 +22,15 @@ class Image:
     name = None
     bitmap = None
 
+
 class NPC:
     tag = None
     name = None
 
-class FantasyGrounds(Parser):   
 
-    def parse_xml(self, path, module):
+class FantasyGrounds:
+
+    def parse_xml(self, path, module, compendium):
         logger.debug("parsing xml: %s", path)
 
         # lookup tables
@@ -35,16 +41,226 @@ class FantasyGrounds(Parser):
         lookup["image"] = {}
         lookup["npc"] = {}
         lookup["quest"] = {}
+        lookup["monster"] = {}
+        lookup["spell"] = {}
+        lookup["item"] = {}
+        lookup["imagedata"] = {}
+        lookup["tokens"] = {}
 
         # arrays
         pages = []
         maps = []
         groups = []
         encounters = []
+        monsters = []
+        items = []
+        spells = []
 
         # xml tree
         tree = ElementTree.parse(path)
         root = tree.getroot()
+        working_dir = os.path.dirname(path)
+
+        monsters_dir = os.path.join(working_dir, "monsters")
+        if os.path.exists(monsters_dir):
+            shutil.rmtree(monsters_dir)
+
+        # tokens
+        tokens_dir = os.path.join(working_dir, "tokens")
+        if os.path.exists(tokens_dir):
+            shutil.copytree(tokens_dir, monsters_dir)
+
+        # image data
+        for category in root.findall("./reference/imagedata/category"):
+            for node in category.findall("*"):
+                tag = node.tag
+                name = node.find("name").text
+                slug = slugify(name)
+                bitmap = node.find("image").find("bitmap").text.replace("\\", "/")
+
+                source = os.path.join(working_dir, bitmap)
+                target_filename = os.path.basename(source)
+                target_dir = os.path.join(working_dir, "monsters-reference-images")
+                if not os.path.exists(target_dir):
+                    os.mkdir(target_dir)
+                target = os.path.join(target_dir, target_filename)
+                shutil.copyfile(source, target)
+                lookup["imagedata"][tag] = target_filename
+
+        logger.info("%s images", len(lookup["imagedata"]))
+
+
+        # monsters
+        logger.info("parsing monsters")
+
+        # tags = {}
+        # for category in root.findall("./reference/npcdata"):
+        #     for node in category.findall("*"):
+        #         for subnode in node.findall("*"):
+        #             if tags.__contains__(subnode.tag):
+        #                 pre_value = tags[subnode.tag]
+        #             else:
+        #                 pre_value = 0
+        #             tags[subnode.tag] = pre_value + 1
+
+        for category in root.findall("./reference/npcdata"):
+            for node in category.findall("*"):
+                tag = node.tag
+                name = node.find("name").text
+
+                monster = Monster()
+                monster.name = name
+                monster.slug = slugify(name)
+                monster.image = node.find("token").text.split("\\")[1].split("@")[0]
+
+                monster.type = node.find("type").text
+                monster.size = node.find("size").text[:1].upper()
+                ac = node.find("ac").text
+                actext = node.find("actext").text
+                monster.ac = ac
+                if actext is not None:
+                    monster.ac = "{} {}".format(ac, actext)
+                hp = node.find("hp").text
+                hd = node.find("hd").text
+                monster.hp = hp
+                if hd is not None:
+                    monster.hp = "{} {}".format(hp, hd)
+                monster.speed = node.find("speed").text
+                monster.str = node.find("abilities").find("strength").find("score").text
+                monster.dex = node.find("abilities").find("dexterity").find("score").text
+                monster.con = node.find("abilities").find("constitution").find("score").text
+                monster.int = node.find("abilities").find("intelligence").find("score").text
+                monster.wis = node.find("abilities").find("wisdom").find("score").text
+                monster.cha = node.find("abilities").find("charisma").find("score").text
+
+                savingthrows = node.find("savingthrows")
+                if savingthrows is not None:
+                    monster.save = savingthrows.text
+
+                skills = node.find("skills")
+                if skills is not None:
+                    monster.skill = skills.text
+
+                sensestext = node.find("senses").text
+                monster.senses = sensestext
+                if "passive perception" in sensestext.lower():
+                    index = sensestext.lower().find("passive perception")
+                    senses = sensestext[0:index]
+                    passive = sensestext[index + 19:]
+                    monster.senses = senses
+                    monster.passive = passive
+                monster.alignment = node.find("alignment").text
+                monster.languages = node.find("languages").text
+                monster.cr = node.find("cr").text
+
+                conditionimmunities_node = node.find("conditionimmunities")
+                if conditionimmunities_node is not None:
+                    monster.conditionImmune = conditionimmunities_node.text
+
+                damageresistances_node = node.find("damageresistances")
+                if damageresistances_node is not None:
+                    monster.resist = damageresistances_node.text
+
+                damageimmunities_node = node.find("damageimmunities")
+                if damageimmunities_node is not None:
+                    monster.immune = damageimmunities_node.text
+
+                damagevulnerabilities_node = node.find("damagevulnerabilities")
+                if damagevulnerabilities_node is not None:
+                    monster.vulnerable = damagevulnerabilities_node.text
+
+                for trait_node in node.findall("traits/*"):
+                    trait = Trait()
+                    trait.name = trait_node.find("name").text
+                    trait.text = trait_node.find("desc").text
+                    monster.traits.append(trait)
+
+                for action_node in node.findall("actions/*"):
+                    action = Action()
+                    action.name = action_node.find("name").text
+                    action.text = action_node.find("desc").text
+                    monster.actions.append(action)
+
+                for action_node in node.findall("lairactions/*"):
+                    action = Action()
+                    action.name = "{} [Lair Action]".format(action_node.find("name").text)
+                    action.text = action_node.find("desc").text
+                    monster.actions.append(action)
+
+                for innatespells_node in node.findall("innatespells/*"):
+                    action = Action()
+                    action.name = "{} [Innate Spell]]".format(innatespells_node.find("name").text)
+                    action.text = innatespells_node.find("desc").text
+                    monster.actions.append(action)
+
+                for spells_node in node.findall("spells/*"):
+                    action = Action()
+                    action.name = "{} [Spell]]".format(spells_node.find("name").text)
+                    action.text = spells_node.find("desc").text
+                    monster.actions.append(action)
+
+                for legendary_action_node in node.findall("legendaryactions/*"):
+                    action = Action()
+                    action.name = legendary_action_node.find("name").text
+                    action.text = legendary_action_node.find("desc").text
+                    monster.legendaries.append(action)
+
+                for reaction_node in node.findall("reactions/*"):
+                    action = Action()
+                    action.name = reaction_node.find("name").text
+                    action.text = reaction_node.find("desc").text
+                    monster.reactions.append(action)
+
+                for description in node.findall("text/*"):
+                    html = ElementTree.tostring(description, encoding='utf-8', method='xml').decode('utf-8')
+                    if html.startswith('<link class="imagewindow"'):
+                        img_ref = description.attrib["recordname"]
+                        img_ref = img_ref[20:-2]
+                        if monster.image is None:
+                            monster.image = lookup["imagedata"][img_ref]
+                        continue
+                    if html.startswith('<list>'):
+                        html = html.replace('<list>', '').replace('</list>', '')
+                        html = html.replace('<li>', '\n-\t').replace('</li>', '')
+                    html = html.replace('<p>', '').replace('</p>', '\n')
+                    html = html.replace('<h>', '<b>').replace('</h>', '</b>\n')
+                    html = html.replace('<b><i>', '<b>').replace('</i></b>', '</b>')
+                    monster.description = '{}{}'.format(monster.description, html)
+                    logger.info("%s: %s", description, html)
+
+                lookup["monster"][tag] = monster
+                monsters.append(monster)
+                compendium.monsters.append(monster)
+
+        logger.info("%s monsters", len(monsters))
+
+        for category in root.findall("./reference/spelldata"):
+            for node in category.findall("*"):
+                tag = node.tag
+                name = node.find("name").text
+
+                spell = Spell()
+                spell.name = name
+                spell.slug = slugify(name)
+                lookup["spell"][tag] = spell
+                spells.append(spell)
+                compendium.spells.append(spell)
+
+        logger.info("%s spells", len(spells))
+
+        for category in root.findall("./reference/equipmentdata"):
+            for node in category.findall("*"):
+                tag = node.tag
+                name = node.find("name").text
+
+                item = Item()
+                item.name = name
+                item.slug = slugify(name)
+                lookup["item"][tag] = item
+                items.append(item)
+                compendium.items.append(item)
+
+        logger.info("%s items", len(items))
 
         # NPCS
         logger.info("parsing npcs")
@@ -53,7 +269,7 @@ class FantasyGrounds(Parser):
             for node in category.findall("*"):
                 tag = node.tag
                 name = node.find("name").text
-                
+
                 npc = NPC()
                 npc.name = name
                 lookup["npc"][tag] = npc
@@ -104,7 +320,7 @@ class FantasyGrounds(Parser):
 
         # some modules got, so use this instead
         for node in root.findall("./quest/*/*"):
-        # for node in root.findall("./quest/*"):
+            # for node in root.findall("./quest/*"):
             # tag 
             tag = node.tag
 
@@ -114,7 +330,8 @@ class FantasyGrounds(Parser):
             page.name = node.find("name").text
             page.slug = slugify(page.name)
 
-            page.content = ElementTree.tostring(node.find("description"), encoding='utf-8', method='xml').decode('utf-8')
+            page.content = ElementTree.tostring(node.find("description"), encoding='utf-8', method='xml').decode(
+                'utf-8')
 
             cr = node.find("cr").text if node.find("cr") else ""
             xp = node.find("xp").text if node.find("xp") else ""
@@ -156,7 +373,7 @@ class FantasyGrounds(Parser):
                 image.tag = tag
                 image.bitmap = node.find("./image/bitmap").text.replace("\\", "/")
                 image.name = node.find("name").text
-                
+
                 lookup["image"][tag] = image
 
                 markers = []
@@ -177,8 +394,8 @@ class FantasyGrounds(Parser):
                         # maybe use a regex?
                         name = page.name
                         if " " in page.name:
-                             first, second = page.name.split(' ', 1)
-                             if "." in first:
+                            first, second = page.name.split(' ', 1)
+                            if "." in first:
                                 name = second
 
                         marker.name = name
@@ -249,7 +466,7 @@ class FantasyGrounds(Parser):
 
                 encounter.name = node.find("name").text
                 encounter.slug = slugify(encounter.name)
-                
+
                 encounters.append(encounter)
                 lookup["encounter"][tag] = encounter
 
@@ -278,8 +495,6 @@ class FantasyGrounds(Parser):
                             if maplinknode.find("./imagey") != None:
                                 combatant.y = maplinknode.find("./imagey").text
 
-
-
         encounters_sorted = humansorted(encounters, key=lambda x: x.name)
 
         # custom regex for processing links
@@ -306,7 +521,8 @@ class FantasyGrounds(Parser):
             content = page.content
             # maybe regex 
             content = content.replace('<text type="formattedtext">', '').replace('<text>', '').replace('</text>', '')
-            content = content.replace('<description type="formattedtext">', '').replace('<description>', '').replace('</description>', '')
+            content = content.replace('<description type="formattedtext">', '').replace('<description>', '').replace(
+                '</description>', '')
             content = content.replace('<frame>', '<blockquote class="read">').replace('</frame>', '</blockquote>')
             content = content.replace('<frameid>DM</frameid>', '')
             content = content.replace('\r', '<br />')
@@ -335,7 +551,7 @@ class FantasyGrounds(Parser):
 
         return module
 
-    def process_mod(self, path, module):
+    def process_mod(self, path, module, compendium):
         # path info
         basename = os.path.basename(path)
         dirname = os.path.dirname(path)
@@ -347,41 +563,54 @@ class FantasyGrounds(Parser):
 
         # convert db.xml to module.xml
         xml_file = os.path.join(unpacked_dir, "db.xml")
+        client_xml_file = os.path.join(unpacked_dir, "client.xml")
+
         if os.path.exists(xml_file):
             # parse data
-            self.parse_xml(xml_file, module)
+            self.parse_xml(xml_file, module, compendium)
 
             # create dst
-            dst = os.path.join(unpacked_dir, "module.xml")
+            moduleDst = os.path.join(unpacked_dir, "module.xml")
+            compendiumDst = os.path.join(unpacked_dir, "compendium.xml")
 
             # export xml
-            module.export_xml(dst)
+            module.export_xml(moduleDst)
+            compendium.export_xml(compendiumDst)
 
+        elif os.path.exists(client_xml_file):
+            # parse data
+            self.parse_xml(client_xml_file, module, compendium)
+
+            # create dst
+            moduleDst = os.path.join(unpacked_dir, "module.xml")
+            compendiumDst = os.path.join(unpacked_dir, "compendium.xml")
+
+            # export xml
+            module.export_xml(moduleDst)
+            compendium.export_xml(compendiumDst)
         else:
-           raise ValueError("db.xml not found")
+            raise ValueError("db.xml not found")
 
         # create archive
         Module.create_archive(unpacked_dir, module.slug)
 
         return module
 
-
-    def process(self, path, module):
+    def process(self, path, module, compendium):
         # path info
         basename = os.path.basename(path)
         ext = os.path.splitext(basename)[1]
 
         # file check
-        if os.path.isfile(path) == False:
+        if not os.path.isfile(path):
             raise ValueError('Path must be a file')
 
         # extension check
         if ext == ".mod":
             # .mod file
-            self.process_mod(path, module)
+            self.process_mod(path, module, compendium)
         elif ext == ".xml":
             # .xml file
-            self.parse_xml(path, module)
-        else:  
-            raise ValueError('Invalid path') 
-
+            self.parse_xml(path, module, compendium)
+        else:
+            raise ValueError('Invalid path')

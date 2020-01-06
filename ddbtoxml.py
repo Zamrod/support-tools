@@ -1,15 +1,17 @@
 #!/usr/local/bin/python3
-import os
-import sys
+import base64
 import json
 import math
-import uuid
-import requests
-import tempfile
-import shutil
+import os
 import re
-import base64
+import shutil
+import sys
+import tempfile
+import uuid
 from json import JSONDecodeError
+
+import requests
+
 
 def getJSON(theurl):
 	rawjson = ""

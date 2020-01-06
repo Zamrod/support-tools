@@ -1,5 +1,3 @@
-import uuid
-
 class Combatant:
 	def __init__(self):
 		self.name = None

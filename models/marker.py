@@ -1,5 +1,3 @@
-import uuid
-
 class Marker:
 	def __init__(self):
 		self.name = None

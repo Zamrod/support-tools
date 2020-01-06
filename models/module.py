@@ -1,14 +1,12 @@
-import uuid
 import logging
-import shutil
 import os
+import shutil
+import uuid
 from xml.etree import ElementTree
-
-from models import Group, Page, Map, Marker, Encounter, Combatant
-from slugify import slugify
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class Module:
 
@@ -28,11 +26,11 @@ class Module:
         self.maps = []
         self.encounters = []
 
-    def export_xml(self, path):
-    
+    def export_xml(self, modulePath):
+
         # create module
         module = ElementTree.Element("module")
-        
+
         module.set("id", self.id)
         ElementTree.SubElement(module, "name").text = self.name
         ElementTree.SubElement(module, "slug").text = self.slug
@@ -67,7 +65,7 @@ class Module:
         for page in self.pages:
             el = ElementTree.SubElement(module, "page")
             el.set("id", page.id)
-            
+
             if page.parent != None:
                 el.set("parent", page.parent.id)
 
@@ -77,11 +75,11 @@ class Module:
 
         # maps
         for map in self.maps:
-            
+
             el = ElementTree.SubElement(module, "map")
             el.set("id", map.id)
-            
-            if map.parent != None:
+
+            if map.parent is not None:
                 el.set("parent", map.parent.id)
 
             ElementTree.SubElement(el, "name").text = map.name
@@ -113,14 +111,14 @@ class Module:
 
                 if marker.color:
                     ElementTree.SubElement(markerElement, "color").text = marker.color
-                
+
                 if marker.x:
                     ElementTree.SubElement(markerElement, "x").text = marker.x
 
-                if marker.y: 
+                if marker.y:
                     ElementTree.SubElement(markerElement, "y").text = marker.y
 
-                if marker.contentRef: 
+                if marker.contentRef:
                     contentElement = ElementTree.SubElement(markerElement, "content")
                     contentElement.set("ref", marker.contentRef)
 
@@ -132,10 +130,10 @@ class Module:
 
         # encounters
         for encounter in self.encounters:
-            
+
             el = ElementTree.SubElement(module, "encounter")
             el.set("id", encounter.id)
-            
+
             if encounter.parent != None:
                 el.set("parent", encounter.parent.id)
 
@@ -148,7 +146,7 @@ class Module:
                 if combatant.name:
                     ElementTree.SubElement(combatantElement, "name").text = combatant.name
 
-                if combatant.label:  
+                if combatant.label:
                     ElementTree.SubElement(combatantElement, "label").text = combatant.label
 
                 if combatant.role:
@@ -166,9 +164,9 @@ class Module:
                 if combatant.monsterRef:
                     monsterElement = ElementTree.SubElement(combatantElement, "monster")
                     monsterElement.set("ref", combatant.monsterRef)
-                
-        tree = ElementTree.ElementTree(module)
-        tree.write(path, encoding="utf-8", xml_declaration=True)
+
+        moduleTree = ElementTree.ElementTree(module)
+        moduleTree.write(modulePath, encoding="utf-8", xml_declaration=True)
 
     def create_archive(src, name):
         # copy assets
@@ -192,4 +190,4 @@ class Module:
         shutil.make_archive(archive_file, 'zip', src)
 
         # rename
-        os.rename(archive_file + ".zip",  archive_file + ".module")
+        os.rename(archive_file + ".zip", archive_file + ".module")
