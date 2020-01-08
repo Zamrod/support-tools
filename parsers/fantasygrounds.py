@@ -65,10 +65,10 @@ class FantasyGrounds:
         if os.path.exists(monsters_dir):
             shutil.rmtree(monsters_dir)
 
-        # tokens
-        tokens_dir = os.path.join(working_dir, "tokens")
-        if os.path.exists(tokens_dir):
-            shutil.copytree(tokens_dir, monsters_dir)
+        # # tokens
+        # tokens_dir = os.path.join(working_dir, "tokens")
+        # if os.path.exists(tokens_dir):
+        #     shutil.copytree(tokens_dir, monsters_dir)
 
         # image data
         for category in root.findall("./reference/imagedata/category"):
@@ -80,7 +80,7 @@ class FantasyGrounds:
 
                 source = os.path.join(working_dir, bitmap)
                 target_filename = os.path.basename(source)
-                target_dir = os.path.join(working_dir, "monsters-reference-images")
+                target_dir = os.path.join(working_dir, "monsters")
                 if not os.path.exists(target_dir):
                     os.mkdir(target_dir)
                 target = os.path.join(target_dir, target_filename)
@@ -111,8 +111,7 @@ class FantasyGrounds:
                 monster = Monster()
                 monster.name = name
                 monster.slug = slugify(name)
-                monster.image = node.find("token").text.split("\\")[1].split("@")[0]
-
+                # monster.image = node.find("token").text.split("\\")[1].split("@")[0]
                 monster.type = node.find("type").text
                 monster.size = node.find("size").text[:1].upper()
                 ac = node.find("ac").text
@@ -172,52 +171,51 @@ class FantasyGrounds:
                 for trait_node in node.findall("traits/*"):
                     trait = Trait()
                     trait.name = trait_node.find("name").text
-                    trait.text = trait_node.find("desc").text
+                    trait.text = trait_node.find("desc").text.replace("\\r", "\n")
                     monster.traits.append(trait)
 
                 for action_node in node.findall("actions/*"):
                     action = Action()
                     action.name = action_node.find("name").text
-                    action.text = action_node.find("desc").text
+                    action.text = action_node.find("desc").text.replace("\\r", "\n")
                     monster.actions.append(action)
 
                 for action_node in node.findall("lairactions/*"):
                     action = Action()
                     action.name = "{} [Lair Action]".format(action_node.find("name").text)
-                    action.text = action_node.find("desc").text
+                    action.text = action_node.find("desc").text.replace("\\r", "\n")
                     monster.actions.append(action)
 
                 for innatespells_node in node.findall("innatespells/*"):
                     action = Action()
-                    action.name = "{} [Innate Spell]]".format(innatespells_node.find("name").text)
-                    action.text = innatespells_node.find("desc").text
+                    action.name = "{} [Innate Spell]".format(innatespells_node.find("name").text)
+                    action.text = innatespells_node.find("desc").text.replace("\\r", "\n")
                     monster.actions.append(action)
 
                 for spells_node in node.findall("spells/*"):
                     action = Action()
-                    action.name = "{} [Spell]]".format(spells_node.find("name").text)
-                    action.text = spells_node.find("desc").text
+                    action.name = "{} [Spell]".format(spells_node.find("name").text)
+                    action.text = spells_node.find("desc").text.replace("\\r", "\n")
                     monster.actions.append(action)
 
                 for legendary_action_node in node.findall("legendaryactions/*"):
                     action = Action()
                     action.name = legendary_action_node.find("name").text
-                    action.text = legendary_action_node.find("desc").text
+                    action.text = legendary_action_node.find("desc").text.replace("\\r", "\n")
                     monster.legendaries.append(action)
 
                 for reaction_node in node.findall("reactions/*"):
                     action = Action()
                     action.name = reaction_node.find("name").text
-                    action.text = reaction_node.find("desc").text
+                    action.text = reaction_node.find("desc").text.replace("\\r", "\n")
                     monster.reactions.append(action)
 
                 for description in node.findall("text/*"):
-                    html = ElementTree.tostring(description, encoding='utf-8', method='xml').decode('utf-8')
+                    html = ElementTree.tostring(description, encoding='utf-8', method='xml').decode('utf-8').replace("\\r", "\n")
                     if html.startswith('<link class="imagewindow"'):
                         img_ref = description.attrib["recordname"]
                         img_ref = img_ref[20:-2]
-                        if monster.image is None:
-                            monster.image = lookup["imagedata"][img_ref]
+                        monster.image = lookup["imagedata"][img_ref]
                         continue
                     if html.startswith('<list>'):
                         html = html.replace('<list>', '').replace('</list>', '')
@@ -226,11 +224,13 @@ class FantasyGrounds:
                     html = html.replace('<h>', '<b>').replace('</h>', '</b>\n')
                     html = html.replace('<b><i>', '<b>').replace('</i></b>', '</b>')
                     monster.description = '{}{}'.format(monster.description, html)
-                    logger.info("%s: %s", description, html)
+                    monster.description.replace("\\r", "\n")
+                    # logger.info("%s: %s", description, html)
 
                 lookup["monster"][tag] = monster
                 monsters.append(monster)
                 compendium.monsters.append(monster)
+
 
         logger.info("%s monsters", len(monsters))
 
