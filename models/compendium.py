@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import uuid
+import vkbeautify as vkb
 from xml.etree import ElementTree
 
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +39,11 @@ class Compendium:
             item.export_xml(compendium)
 
         tree = ElementTree.ElementTree(compendium)
-        tree.write(path, encoding="utf-8", xml_declaration=True)
+        ugly_text = ElementTree.tostring(tree.getroot(), encoding='utf-8', method='xml').decode('utf-8')
+        pretty_text = vkb.xml(ugly_text)  # return String
+        vkb.xml(pretty_text, path)  # save in file
+
+        #tree.write(path, encoding="utf-8", xml_declaration=True)
 
     def create_archive(src, name):
         # copy assets

@@ -41,17 +41,13 @@ class Monster:
         self.passive = None
         self.languages = None
         self.cr = None
-        self.spells = None
         self.image = None
         self.environment = None
         self.traits = []
         self.actions = []
         self.legendaries = []
         self.reactions = []
-    #
-    #
-    # innatespells: 51
-    # spells: 25
+        self.spells = []
 
     def export_xml(self, compendium):
         el = ElementTree.SubElement(compendium, "monster")
@@ -80,7 +76,7 @@ class Monster:
         ElementTree.SubElement(el, "passive").text = self.passive
         ElementTree.SubElement(el, "languages").text = self.languages
         ElementTree.SubElement(el, "cr").text = self.cr
-        ElementTree.SubElement(el, "spells").text = self.spells
+        ElementTree.SubElement(el, "spells").text = str.join(", ", self.spells)
         ElementTree.SubElement(el, "image").text = self.image
         ElementTree.SubElement(el, "description").text = self.description
         #sElementTree.SubElement(el, "environment").text = self.environment

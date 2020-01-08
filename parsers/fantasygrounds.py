@@ -2,9 +2,7 @@ import logging
 import os
 import re
 import shutil
-
-from markdownify import markdownify
-
+from bs4 import BeautifulSoup
 from xml.etree import ElementTree
 
 from natsort import humansorted
@@ -29,6 +27,30 @@ class NPC:
 
 
 class FantasyGrounds:
+
+    def cleanup_html(self, nodes):
+        text = ""
+        for node in nodes:
+            html = ElementTree.tostring(node, encoding='utf-8', method='xml').decode('utf-8').replace("\\r", "\n")
+            soup = BeautifulSoup(html, 'html.parser')
+            for h in soup.findAll('h'):
+                new_tag = soup.new_tag("b")
+                new_tag.string = str.format("{}\n", h.string)
+                h.replaceWith(new_tag)
+            for p in soup.findAll('p'):
+                p.replaceWith(str.format("{}\n", p.text))
+            for td in soup.findAll('td'):
+                td.replaceWith(str.format("{}\t\t\t", td.text))
+            for tr in soup.findAll('tr'):
+                tr.replaceWith(str.format("{}\n", tr.text))
+            for table in soup.findAll('table'):
+                table.replaceWith(str.format("{}\n", table.text))
+            for li in soup.findAll('li'):
+                li.replaceWith(str.format("-\t{}\n", li.text))
+            for list_node in soup.findAll('list'):
+                list_node.replaceWith(str.format("{}\n", list_node.text))
+            text = str.format("{}{}", text, soup.prettify())
+        return text
 
     def parse_xml(self, path, module, compendium):
         logger.debug("parsing xml: %s", path)
@@ -89,12 +111,8 @@ class FantasyGrounds:
 
         logger.info("%s images", len(lookup["imagedata"]))
 
-
-        # monsters
-        logger.info("parsing monsters")
-
         # tags = {}
-        # for category in root.findall("./reference/npcdata"):
+        # for category in root.findall("./reference/spelldata"):
         #     for node in category.findall("*"):
         #         for subnode in node.findall("*"):
         #             if tags.__contains__(subnode.tag):
@@ -102,7 +120,54 @@ class FantasyGrounds:
         #             else:
         #                 pre_value = 0
         #             tags[subnode.tag] = pre_value + 1
+        # logger.info("::TAGS Dump Start::")
+        # for tag_key in tags.keys():
+        #     logger.info("%s: %s", tag_key, tags[tag_key])
+        # logger.info("::TAGS Dump End::\n")
 
+        logger.info("parsing spells")
+        for category in root.findall("./reference/spelldata"):
+            for node in category.findall("*"):
+                tag = node.tag
+                name = node.find("name").text
+                spell = Spell()
+                spell.name = name
+                spell.slug = slugify(name)
+                spell.level = node.find("level").text
+                spell.school = node.find("school").text.upper()[0:1]
+                spell.classes = node.find("source").text
+                spell.time = node.find("castingtime").text
+                spell.range = node.find("range").text
+                spell.duration = node.find("duration").text
+                spell.components = node.find("components").text
+                ritual_node = node.find("ritual")
+                if ritual_node is not None:
+                    spell.ritual = "YES"
+                spell.text = self.cleanup_html(node.findall("description/*"))
+                spell.source = compendium.slug
+                spells.append(spell)
+                compendium.spells.append(spell)
+                lookup["spell"][tag] = spell
+
+        logger.info("%s spells", len(spells))
+
+        for category in root.findall("./reference/equipmentdata"):
+            for node in category.findall("*"):
+                tag = node.tag
+                name = node.find("name").text
+
+                item = Item()
+                item.name = name
+                item.slug = slugify(name)
+                lookup["item"][tag] = item
+                items.append(item)
+                compendium.items.append(item)
+
+        logger.info("%s items", len(items))
+
+
+        # monsters
+        logger.info("parsing monsters")
         for category in root.findall("./reference/npcdata"):
             for node in category.findall("*"):
                 tag = node.tag
@@ -186,18 +251,6 @@ class FantasyGrounds:
                     action.text = action_node.find("desc").text.replace("\\r", "\n")
                     monster.actions.append(action)
 
-                for innatespells_node in node.findall("innatespells/*"):
-                    action = Action()
-                    action.name = "{} [Innate Spell]".format(innatespells_node.find("name").text)
-                    action.text = innatespells_node.find("desc").text.replace("\\r", "\n")
-                    monster.actions.append(action)
-
-                for spells_node in node.findall("spells/*"):
-                    action = Action()
-                    action.name = "{} [Spell]".format(spells_node.find("name").text)
-                    action.text = spells_node.find("desc").text.replace("\\r", "\n")
-                    monster.actions.append(action)
-
                 for legendary_action_node in node.findall("legendaryactions/*"):
                     action = Action()
                     action.name = legendary_action_node.find("name").text
@@ -210,57 +263,36 @@ class FantasyGrounds:
                     action.text = reaction_node.find("desc").text.replace("\\r", "\n")
                     monster.reactions.append(action)
 
-                for description in node.findall("text/*"):
-                    html = ElementTree.tostring(description, encoding='utf-8', method='xml').decode('utf-8').replace("\\r", "\n")
-                    if html.startswith('<link class="imagewindow"'):
-                        img_ref = description.attrib["recordname"]
-                        img_ref = img_ref[20:-2]
-                        monster.image = lookup["imagedata"][img_ref]
-                        continue
-                    if html.startswith('<list>'):
-                        html = html.replace('<list>', '').replace('</list>', '')
-                        html = html.replace('<li>', '\n-\t').replace('</li>', '')
-                    html = html.replace('<p>', '').replace('</p>', '\n')
-                    html = html.replace('<h>', '<b>').replace('</h>', '</b>\n')
-                    html = html.replace('<b><i>', '<b>').replace('</i></b>', '</b>')
-                    monster.description = '{}{}'.format(monster.description, html)
-                    monster.description.replace("\\r", "\n")
-                    # logger.info("%s: %s", description, html)
+                for innatespells_node in node.findall("innatespells/*"):
+                    monster.spells.append(innatespells_node.find("name").text.split(" (")[0].split(" -")[0].lower())
+
+                for spells_node in node.findall("spells/*"):
+                    monster.spells.append(spells_node.find("name").text.split(" (")[0].split(" -")[0].lower())
+
+                monster.description = self.cleanup_html(node.findall("text/*"))
+
+                # for description in node.findall("text/*"):
+                #
+                #     if html.startswith('<link class="imagewindow"'):
+                #         img_ref = description.attrib["recordname"]
+                #         img_ref = img_ref[20:-2]
+                #         monster.image = lookup["imagedata"][img_ref]
+                #         continue
+                #     if html.startswith('<list>'):
+                #         html = html.replace('<list>', '').replace('</list>', '')
+                #         html = html.replace('<li>', '\n-\t').replace('</li>', '')
+                #     html = html.replace('<p>', '').replace('</p>', '\n')
+                #     html = html.replace('<h>', '<b>').replace('</h>', '</b>\n')
+                #     html = html.replace('<b><i>', '<b>').replace('</i></b>', '</b>')
+                #
+                #     monster.description = '{}{}'.format(monster.description, html)
+                #     .replace("\\r", "\n")
+                #     # logger.info("%s: %s", description, html)
 
                 lookup["monster"][tag] = monster
                 monsters.append(monster)
                 compendium.monsters.append(monster)
-
-
         logger.info("%s monsters", len(monsters))
-
-        for category in root.findall("./reference/spelldata"):
-            for node in category.findall("*"):
-                tag = node.tag
-                name = node.find("name").text
-
-                spell = Spell()
-                spell.name = name
-                spell.slug = slugify(name)
-                lookup["spell"][tag] = spell
-                spells.append(spell)
-                compendium.spells.append(spell)
-
-        logger.info("%s spells", len(spells))
-
-        for category in root.findall("./reference/equipmentdata"):
-            for node in category.findall("*"):
-                tag = node.tag
-                name = node.find("name").text
-
-                item = Item()
-                item.name = name
-                item.slug = slugify(name)
-                lookup["item"][tag] = item
-                items.append(item)
-                compendium.items.append(item)
-
-        logger.info("%s items", len(items))
 
         # NPCS
         logger.info("parsing npcs")
