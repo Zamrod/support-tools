@@ -7,7 +7,7 @@ import uuid
 
 from slugify import slugify
 from models import Module, Compendium
-from parsers import FantasyGrounds
+from parsers.fantasygrounds import FantasyGroundsParser
 
 # parse arguments
 parser = argparse.ArgumentParser(description="Convert existing modules to Encounter+ compatible file")
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     compendium = Compendium()
     compendium.id = args.id or str(uuid.uuid4())
     compendium.name = args.name or "Unknown"
-    compendium.slug = slugify(module.name)
+    compendium.slug = slugify(compendium.name)
     compendium.author = args.author or "Unknown"
     compendium.code = args.code
     compendium.image = args.cover or "Cover.jpg"
@@ -53,9 +53,9 @@ if __name__ == "__main__":
 
     if args.parser == "fg":
         # FantasyGrounds
-        dp = FantasyGrounds()
+        dp = FantasyGroundsParser()
         module.description = "Converted from FG"
         compendium.description = "Converted from FG"
 
     # process data in path
-    dp.process(args.path, module, compendium)
+    dp.process(args.path, compendium, module)

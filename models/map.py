@@ -1,5 +1,6 @@
 import uuid
 
+
 class Map:
 	def __init__(self):
 		self.id = str(uuid.uuid4())

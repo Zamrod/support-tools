@@ -2,6 +2,17 @@ from xml.etree import ElementTree
 
 
 class Spell:
+    school_abbreviations = {
+        "abjuration": "A",
+        "conjuration": "C",
+        "divination": "D",
+        "enchantment": "EN",
+        "evocation": "EV",
+        "illusion": "I",
+        "necromancy": "N",
+        "transmutation": "T",
+    }
+
     def __init__(self):
         self.name = None
         self.slug = None
@@ -22,7 +33,7 @@ class Spell:
         ElementTree.SubElement(el, "name").text = self.name
         ElementTree.SubElement(el, "slug").text = self.slug
         ElementTree.SubElement(el, "level").text = self.level
-        ElementTree.SubElement(el, "school").text = self.school
+        ElementTree.SubElement(el, "school").text = Spell.school_abbreviations[self.school.lower()]
         ElementTree.SubElement(el, "ritual").text = self.ritual
         ElementTree.SubElement(el, "time").text = self.time
         ElementTree.SubElement(el, "range").text = self.range

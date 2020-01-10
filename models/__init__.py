@@ -11,3 +11,4 @@ from .page import Page
 from .spell import Spell
 from .monster import Trait
 from .monster import Action
+from .image import Image

@@ -87,10 +87,10 @@ class FantasyGrounds:
         if os.path.exists(monsters_dir):
             shutil.rmtree(monsters_dir)
 
-        # # tokens
-        # tokens_dir = os.path.join(working_dir, "tokens")
-        # if os.path.exists(tokens_dir):
-        #     shutil.copytree(tokens_dir, monsters_dir)
+        # tokens
+        images_dir = os.path.join(working_dir, "images")
+        if os.path.exists(images_dir):
+            shutil.copytree(images_dir, monsters_dir)
 
         # image data
         for category in root.findall("./reference/imagedata/category"):
@@ -99,31 +99,11 @@ class FantasyGrounds:
                 name = node.find("name").text
                 slug = slugify(name)
                 bitmap = node.find("image").find("bitmap").text.replace("\\", "/")
-
                 source = os.path.join(working_dir, bitmap)
                 target_filename = os.path.basename(source)
-                target_dir = os.path.join(working_dir, "monsters")
-                if not os.path.exists(target_dir):
-                    os.mkdir(target_dir)
-                target = os.path.join(target_dir, target_filename)
-                shutil.copyfile(source, target)
                 lookup["imagedata"][tag] = target_filename
 
         logger.info("%s images", len(lookup["imagedata"]))
-
-        # tags = {}
-        # for category in root.findall("./reference/spelldata"):
-        #     for node in category.findall("*"):
-        #         for subnode in node.findall("*"):
-        #             if tags.__contains__(subnode.tag):
-        #                 pre_value = tags[subnode.tag]
-        #             else:
-        #                 pre_value = 0
-        #             tags[subnode.tag] = pre_value + 1
-        # logger.info("::TAGS Dump Start::")
-        # for tag_key in tags.keys():
-        #     logger.info("%s: %s", tag_key, tags[tag_key])
-        # logger.info("::TAGS Dump End::\n")
 
         logger.info("parsing spells")
         for category in root.findall("./reference/spelldata"):
@@ -151,20 +131,53 @@ class FantasyGrounds:
 
         logger.info("%s spells", len(spells))
 
+
+        tags = {}
+        for category in root.findall("./reference/equipmentdata"):
+            for node in category.findall("*"):
+                for subnode in node.findall("*"):
+                    if tags.__contains__(subnode.tag):
+                        pre_value = tags[subnode.tag]
+                    else:
+                        pre_value = 0
+                    tags[subnode.tag] = pre_value + 1
+        logger.info("::TAGS Dump Start::")
+        for tag_key in tags.keys():
+            logger.info("%s: %s", tag_key, tags[tag_key])
+        logger.info("::TAGS Dump End::\n")
+
+        logger.info("parsing items")
         for category in root.findall("./reference/equipmentdata"):
             for node in category.findall("*"):
                 tag = node.tag
                 name = node.find("name").text
-
                 item = Item()
                 item.name = name
                 item.slug = slugify(name)
+                item.type = node.find("subtype").text[0:1].upper()
+                item.value = node.find("cost").text
+                ac_node = node.find("ac")
+                if ac_node is not None:
+                    item.ac = ac_node.text
+                weight_node = node.find("weight")
+                if weight_node is not None:
+                    item.weight = weight_node.text
+                item.text = self.cleanup_html(node.findall("description/*"))
+                properties_node = node.find("properties")
+                if properties_node is not None:
+                    item.property = properties_node.text
+                damage_node = node.find("damage")
+                if damage_node is not None:
+                    damage_nodes = damage_node.text.split(" ")
+                    item.dmg1 = damage_nodes[0]
+                    if len(damage_nodes) > 1:
+                        item.dmgType = damage_nodes[1]
+
                 lookup["item"][tag] = item
                 items.append(item)
                 compendium.items.append(item)
 
         logger.info("%s items", len(items))
-
 
         # monsters
         logger.info("parsing monsters")
@@ -176,7 +189,6 @@ class FantasyGrounds:
                 monster = Monster()
                 monster.name = name
                 monster.slug = slugify(name)
-                # monster.image = node.find("token").text.split("\\")[1].split("@")[0]
                 monster.type = node.find("type").text
                 monster.size = node.find("size").text[:1].upper()
                 ac = node.find("ac").text
@@ -269,26 +281,16 @@ class FantasyGrounds:
                 for spells_node in node.findall("spells/*"):
                     monster.spells.append(spells_node.find("name").text.split(" (")[0].split(" -")[0].lower())
 
-                monster.description = self.cleanup_html(node.findall("text/*"))
+                monster_description = self.cleanup_html(node.findall("text/*"))
+                for description in node.findall("text/*"):
+                    if description.tag == 'link':
+                        img_ref = description.attrib["recordname"]
+                        img_ref = img_ref[20:-2]
+                        if lookup["imagedata"].keys().__contains__(img_ref):
+                            monster.image = lookup["imagedata"][img_ref]
+                        break
 
-                # for description in node.findall("text/*"):
-                #
-                #     if html.startswith('<link class="imagewindow"'):
-                #         img_ref = description.attrib["recordname"]
-                #         img_ref = img_ref[20:-2]
-                #         monster.image = lookup["imagedata"][img_ref]
-                #         continue
-                #     if html.startswith('<list>'):
-                #         html = html.replace('<list>', '').replace('</list>', '')
-                #         html = html.replace('<li>', '\n-\t').replace('</li>', '')
-                #     html = html.replace('<p>', '').replace('</p>', '\n')
-                #     html = html.replace('<h>', '<b>').replace('</h>', '</b>\n')
-                #     html = html.replace('<b><i>', '<b>').replace('</i></b>', '</b>')
-                #
-                #     monster.description = '{}{}'.format(monster.description, html)
-                #     .replace("\\r", "\n")
-                #     # logger.info("%s: %s", description, html)
-
+                monster.description = monster_description
                 lookup["monster"][tag] = monster
                 monsters.append(monster)
                 compendium.monsters.append(monster)
@@ -391,7 +393,7 @@ class FantasyGrounds:
             group.slug = slugify(group.name)
             group.parent = parent
 
-            if group.name == None or group.name == "":
+            if group.name is None or group.name == "":
                 group = parent
             else:
                 groups.append(group)
@@ -569,6 +571,7 @@ class FantasyGrounds:
             # fix links
             content = re.sub(r'href=[\'"]?(encounter|battle|image|quest)\.([^\'">]+)', href_replace, content)
 
+
             # add title
             if content.startswith('<h3>'):
                 page.content = content.replace('<h3>', '<h2>', 1).replace('</h3>', '</h2>', 1)
@@ -596,6 +599,14 @@ class FantasyGrounds:
         # convert db.xml to module.xml
         xml_file = os.path.join(unpacked_dir, "db.xml")
         client_xml_file = os.path.join(unpacked_dir, "client.xml")
+        definition_xml_file = os.path.join(unpacked_dir, "definition.xml")
+        front_cover = os.path.join(unpacked_dir, "images/front_cover.jpg")
+        if os.path.exists(definition_xml_file):
+            tree = ElementTree.parse(definition_xml_file)
+            module.name = tree.find("displayname").text
+            module.slug = slugify(module.name)
+            module.author = tree.find("author").text
+            module.image = "front_cover.jpg"
 
         if os.path.exists(xml_file):
             # parse data

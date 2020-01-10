@@ -1,4 +1,5 @@
 from xml.etree import ElementTree
+from .image import Image
 
 
 class Trait:
@@ -15,6 +16,7 @@ class Action:
 
 class Monster:
     def __init__(self):
+        self.tag = None
         self.name = None
         self.slug = None
         self.description = ""
@@ -77,9 +79,10 @@ class Monster:
         ElementTree.SubElement(el, "languages").text = self.languages
         ElementTree.SubElement(el, "cr").text = self.cr
         ElementTree.SubElement(el, "spells").text = str.join(", ", self.spells)
-        ElementTree.SubElement(el, "image").text = self.image
+        if self.image is not None:
+            ElementTree.SubElement(el, "image").text = self.image.filename()
         ElementTree.SubElement(el, "description").text = self.description
-        #sElementTree.SubElement(el, "environment").text = self.environment
+        # ElementTree.SubElement(el, "environment").text = self.environment
 
         for trait in self.traits:
             trait_el = ElementTree.SubElement(el, "trait")
