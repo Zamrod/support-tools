@@ -107,9 +107,11 @@ class CompendiumParser:
     def parse_monsters(self, reference_node, source):
         monsters = []
         logger.info("parsing monsters")
-        for node in reference_node.findall("npcdata/*"):
+        logger.info(reference_node)
+        for node in reference_node.findall("category/*"):
             tag = node.tag
             name = node.find("name").text
+            logger.info("parsing monster: " + name)
 
             # if not name.__contains__("Mind Flayer"):
             #     continue
@@ -176,31 +178,41 @@ class CompendiumParser:
             for trait_node in node.findall("traits/*"):
                 trait = Trait()
                 trait.name = trait_node.find("name").text
-                trait.text = trait_node.find("desc").text.replace("\\r", "\n")
+                trait.text = trait_node.find("desc").text
+                if (trait.text):
+                    trait.text = trait.text.replace("\\r", "\n")
                 monster.traits.append(trait)
 
             for action_node in node.findall("actions/*"):
                 action = Action()
                 action.name = action_node.find("name").text
-                action.text = action_node.find("desc").text.replace("\\r", "\n")
+                action.text = action_node.find("desc").text
+                if (action.text):
+                    action.text = action.text.replace("\\r", "\n")
                 monster.actions.append(action)
 
             for action_node in node.findall("lairactions/*"):
                 action = Action()
                 action.name = "{} [Lair Action]".format(action_node.find("name").text)
-                action.text = action_node.find("desc").text.replace("\\r", "\n")
+                action.text = action_node.find("desc").text
+                if (action.text):
+                    action.text = action.text.replace("\\r", "\n")
                 monster.actions.append(action)
 
             for legendary_action_node in node.findall("legendaryactions/*"):
                 action = Action()
                 action.name = legendary_action_node.find("name").text
-                action.text = legendary_action_node.find("desc").text.replace("\\r", "\n")
+                action.text = legendary_action_node.find("desc").text
+                if (action.text):
+                    action.text = action.text.replace("\\r", "\n")
                 monster.legendaries.append(action)
 
             for reaction_node in node.findall("reactions/*"):
                 action = Action()
                 action.name = reaction_node.find("name").text
-                action.text = reaction_node.find("desc").text.replace("\\r", "\n")
+                action.text = reaction_node.find("desc").text
+                if (action.text):
+                    action.text = action.text.replace("\\r", "\n")
                 monster.reactions.append(action)
 
             for innatespells_node in node.findall("innatespells/*"):
@@ -245,7 +257,7 @@ class CompendiumParser:
 
         # parse images
         compendium.images = self.parse_images(reference_node, working_dir)
-
+    
         # parse spells
         compendium.spells = self.parse_spells(reference_node, compendium.name)
 
@@ -253,6 +265,7 @@ class CompendiumParser:
         # compendium.items = self.parse_items(reference_node, compendium.name)
 
         # parse monsters
+        reference_node = tree.find("./npc")
         compendium.monsters = self.parse_monsters(reference_node, compendium.name)
 
         monster_image_dir = os.path.join(compendium_dir, "monsters")
